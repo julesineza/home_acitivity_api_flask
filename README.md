@@ -1,40 +1,35 @@
-Below is a clean, assignment-ready **README.md** for your Complexity Analyzer Flask API.
-You can copy-paste this directly into your project root.
-
----
-
-```md
 # Complexity Analyzer API (Flask)
 
 ## Overview
 
-The **Complexity Analyzer API** is a Flask-based REST API that measures the execution time of different algorithms for varying input sizes.  
-It helps demonstrate how algorithm performance grows as input size increases, providing both:
+The **Complexity Analyzer API** is a Flask-based REST API that measures the execution time of different algorithms for varying input sizes. It helps demonstrate how algorithm performance grows as input size increases, providing:
 
 - Runtime results in JSON format
-- A Base64-encoded performance graph
+- Performance graphs saved as PNG files
+- Persistent storage of analysis results using SQLite
 
 This project is designed for learning and analyzing **time complexity** concepts such as:
 
-- **O(n)** (Linear)
-- **O(n²)** (Quadratic)
-- **O(log n)** (Logarithmic)
+- **O(n)** — Linear
+- **O(n²)** — Quadratic
+- **O(log n)** — Logarithmic
 
 ---
 
 ## Features
 
-- Analyze multiple algorithms through a REST endpoint
+- Analyze multiple algorithms through REST endpoints
 - Measure execution time using `time.perf_counter()`
-- Generate runtime graphs using Matplotlib
-- Return results and graph in JSON response
+- Generate and save runtime graphs using Matplotlib
+- Persist analysis results to SQLite database
+- Retrieve past analysis records by ID
 - Supports step-based input size testing
 
 ---
 
 ## Algorithms Supported
 
-| Algorithm Name  | Complexity |
+| Algorithm       | Complexity |
 | --------------- | ---------- |
 | `linear_search` | O(n)       |
 | `bubble_sort`   | O(n²)      |
@@ -44,16 +39,19 @@ This project is designed for learning and analyzing **time complexity** concepts
 ---
 
 ## Project Structure
-```
 
+```
 complexity-analyzer/
 │
-├── app.py # Main Flask API
-├── factorial.py # Algorithms implementation
-├── requirements.txt # Dependencies
-└── README.md # Documentation
-
-````
+├── app.py              # Main Flask API
+├── factorial.py        # Algorithm implementations
+├── requirements.txt    # Dependencies
+├── README.md           # Documentation
+├── instance/
+│   └── algorithms.db   # SQLite database (auto-generated)
+└── images/
+    └── static/         # Generated graph images
+```
 
 ---
 
@@ -64,7 +62,7 @@ complexity-analyzer/
 ```bash
 git clone https://github.com/yourusername/complexity-analyzer.git
 cd complexity-analyzer
-````
+```
 
 ### 2. Create a Virtual Environment (Recommended)
 
@@ -78,6 +76,12 @@ venv\Scripts\activate         # Windows
 
 ```bash
 pip install -r requirements.txt
+```
+
+### 4. Create Required Directories
+
+```bash
+mkdir -p images/static
 ```
 
 ---
@@ -100,98 +104,178 @@ http://127.0.0.1:3000
 
 ## API Endpoints
 
----
-
-### Home Endpoint
+### 1. Home
 
 **GET /**
 
 Returns a simple status message.
 
-#### Example Request
-
 ```bash
 curl http://127.0.0.1:3000/
 ```
 
-#### Example Response
+**Response:**
 
-```text
+```
 Complexity Analyzer Running
 ```
 
 ---
 
-### Analyze Algorithm Endpoint
+### 2. Analyze Algorithm
 
 **GET /analyze**
 
 Runs the selected algorithm for increasing input sizes and measures runtime.
 
-#### Query Parameters
+**Query Parameters:**
 
-| Parameter | Type   | Description         |
-| --------- | ------ | ------------------- |
-| `algo`    | string | Algorithm name      |
-| `n`       | int    | Maximum input size  |
-| `steps`   | int    | Number of intervals |
+| Parameter | Type   | Description                     |
+| --------- | ------ | ------------------------------- |
+| `algo`    | string | Algorithm name                  |
+| `n`       | int    | Maximum input size              |
+| `steps`   | int    | Number of measurement intervals |
 
----
-
-#### Example Request
+**Example Request:**
 
 ```bash
 curl "http://127.0.0.1:3000/analyze?algo=bubble_sort&n=500&steps=5"
 ```
 
----
-
-#### Example JSON Response
+**Example Response:**
 
 ```json
 {
   "algorithm": "bubble_sort",
   "items": 500,
-  "time_complexity": "O(n²)",
+  "time_complexity": "O(n2)",
   "steps": 5,
+  "start_time": 1234567890.123,
+  "end_time": 1234567890.456,
   "total_analysis_time_seconds": 0.42,
-  "results": [
-    { "n": 100, "time_seconds": 0.002 },
-    { "n": 200, "time_seconds": 0.009 },
-    { "n": 300, "time_seconds": 0.021 },
-    { "n": 400, "time_seconds": 0.037 },
-    { "n": 500, "time_seconds": 0.061 }
-  ],
-  "graph_base64": "iVBORw0KGgoAAAANSUhEUgAA..."
+  "path_to_graph": "/images/static/bubble_sort.png"
 }
 ```
 
 ---
 
-## Output Graph
+### 3. Save Analysis
 
-The API generates a runtime plot showing how execution time changes as input size increases.
+**POST /save_analysis**
 
-The graph is returned as a **Base64 PNG string**, which can be decoded and displayed in:
+Persists an analysis result to the SQLite database.
 
-- Web applications
-- Postman
-- Frontend dashboards
+**Request Body (JSON):**
+
+```json
+{
+  "algorithm": "bubble_sort",
+  "items": 500,
+  "steps": 5,
+  "start_time": 1234567890.123,
+  "end_time": 1234567890.456,
+  "total_time_ms": 420.5,
+  "time_complexity": "O(n2)",
+  "path_to_graph": "/images/static/bubble_sort.png"
+}
+```
+
+**Example Request:**
+
+```bash
+curl -X POST http://127.0.0.1:3000/save_analysis \
+  -H "Content-Type: application/json" \
+  -d '{
+    "algorithm": "bubble_sort",
+    "items": 500,
+    "steps": 5,
+    "start_time": 1234567890.123,
+    "end_time": 1234567890.456,
+    "total_time_ms": 420.5,
+    "time_complexity": "O(n2)",
+    "path_to_graph": "/images/static/bubble_sort.png"
+  }'
+```
+
+**Success Response (201):**
+
+```json
+{
+  "message": "saved!",
+  "id": 1
+}
+```
+
+**Error Response (500):**
+
+```json
+{
+  "error": "error message"
+}
+```
+
+---
+
+### 4. Retrieve Analysis
+
+**GET /retrieve_analysis/<id>**
+
+Retrieves a saved analysis record by its ID.
+
+**Example Request:**
+
+```bash
+curl http://127.0.0.1:3000/retrieve_analysis/1
+```
+
+**Success Response (200):**
+
+```json
+{
+  "id": 1,
+  "algo_name": "bubble_sort",
+  "items": 500,
+  "steps": 5,
+  "start_time": 1234567890.123,
+  "end_time": 1234567890.456,
+  "time_complexity": "O(n2)",
+  "path_to_graph": "/images/static/bubble_sort.png"
+}
+```
+
+**Not Found Response (404):**
+
+```json
+{
+  "error": "Not found"
+}
+```
+
+---
+
+## Database Schema
+
+The API uses SQLite with Flask-SQLAlchemy. The `algorithm_info` table stores:
+
+| Column            | Type    | Description                   |
+| ----------------- | ------- | ----------------------------- |
+| `id`              | Integer | Primary key (auto-increment)  |
+| `algo_name`       | String  | Name of the algorithm         |
+| `items`           | Integer | Maximum input size (n)        |
+| `steps`           | Integer | Number of measurement steps   |
+| `start_time`      | Float   | Analysis start timestamp      |
+| `end_time`        | Float   | Analysis end timestamp        |
+| `total_time_ms`   | Float   | Total analysis duration       |
+| `time_complexity` | String  | Big-O notation                |
+| `path_to_graph`   | String  | Path to the saved graph image |
 
 ---
 
 ## Requirements
 
-Main libraries used:
-
-- Flask
-- Matplotlib
-- Python Standard Libraries (`time`, `io`, `base64`)
-
-Example `requirements.txt`:
-
 ```txt
 Flask
+Flask-SQLAlchemy
 matplotlib
 ```
 
@@ -199,42 +283,11 @@ matplotlib
 
 ## Future Improvements
 
-Possible enhancements:
-
 - Input validation and error handling
 - Add more algorithms (merge sort, quick sort)
-- Store results in a database
-- Add Swagger/OpenAPI documentation
+- List all saved analyses endpoint
+- Delete analysis endpoint
+- Swagger/OpenAPI documentation
 - Frontend dashboard for visualization
 
 ---
-
-## Author
-
-Developed as part of an academic assignment on:
-
-**Algorithm Time Complexity Analysis using REST APIs**
-
----
-
-## License
-
-This project is for educational use only.
-
-```
-
----
-
-# Next (Optional)
-
-If you want, I can also generate:
-
-- `requirements.txt`
-- Full `factorial.py` algorithms file
-- Swagger documentation (`swagger.json`)
-- A proper report PDF for submission
-
-Just tell me what your assignment requires.
-```
-
-Ai usage link - https://chatgpt.com/share/6979efca-d55c-8005-a79c-2073b289de7d

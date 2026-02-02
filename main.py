@@ -2,7 +2,9 @@ from flask import Flask, jsonify, request
 import time
 import base64
 import io
+import os
 from factorial import linear_search, bubble_sort, nested_loops, binary_search
+from flask_sqlalchemy import SQLAlchemy
 
 #matplotlib initilization stuff 
 import matplotlib
@@ -11,16 +13,27 @@ import matplotlib.pyplot as plt
 
 app = Flask(__name__)
 
+#creating the db 
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///algorithms.db"
+db=SQLAlchemy(app)
 
-@app.route("/")
-def home():
-    return "Complexity Analyzer Running"
+class algorithm_info(db.Model):
+    id =db.Column(db.Integer,primary_key=True)
+    algo_name=db.Column(db.String(50),nullable = False)
+    items=db.Column(db.Integer,nullable = False)
+    steps=db.Column(db.Integer,nullable = False)
+    start_time=db.Column(db.Float,nullable = False)
+    end_time=db.Column(db.Float,nullable = False)
+    total_time_ms=db.Column(db.Float,nullable = False)
+    time_complexity = db.Column(db.String(50),nullable = False)
+    path_to_graph=db.Column(db.String(50),nullable = False)
+  
+
+with app.app_context():
+    db.create_all()
 
 
-
-@app.route("/analyze", methods=["GET"])
-def analyze():
-
+def analyze_algo(algo_name,n,steps):
     overall_start = time.perf_counter()
 
     algo_name = request.args.get("algo")
@@ -65,11 +78,21 @@ def analyze():
     plt.ylabel("Execution Time (seconds)")
 
     # Convert plot into Base64
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
+    # buf = io.BytesIO()
+    #where to save the image
+    IMAGES_DIR = os.path.join(app.root_path, 'images')
+    STATIC_DIR = os.path.join(IMAGES_DIR, 'static')
+    
 
-    graph_base64 = base64.b64encode(buf.read()).decode("utf-8")
+    file_name=f"{algo_name}.png"
+    #create full path by joining the image dir with the name 
+    full_path=os.path.join(IMAGES_DIR,file_name)
+
+    plt.savefig(full_path, format="png")
+    path_to_graph = f'/images/static/{file_name}'
+    # buf.seek(0)
+
+    # graph_base64 = base64.b64encode(buf.read()).decode("utf-8")
     plt.close()
     #TODO - put the base64 image on a url 
 
@@ -93,12 +116,72 @@ def analyze():
         "start_time":start,
         "end_time":end,
         "total_analysis_time_seconds": overall_end - overall_start,
-        "results": results,
-        "graph_base64": graph_base64
+        # "results": results,
+        # "graph_base64": graph_base64
+        "path_to_graph":path_to_graph
     }
+    return response
+@app.route("/")
+def home():
+    return "Complexity Analyzer Running"
 
-    return jsonify(response)
 
+
+@app.route("/analyze", methods=["GET"])
+def analyze():
+
+    algo_name = request.args.get("algo")
+    n = int(request.args.get("n"))
+    steps = int(request.args.get("steps"))
+    
+    data = analyze_algo(algo_name, n, steps)
+    return jsonify(data)
+
+    
+
+@app.route("/save_analysis", methods=["POST"])
+def save_analysis():
+    # Get from request JSON body instead of query params
+    data = request.get_json()
+    
+    try:
+        new_record = algorithm_info(
+            algo_name=data["algorithm"],
+            items=data["items"],
+            steps=data["steps"],
+            start_time=data["start_time"],
+            end_time=data["end_time"],
+            total_time_ms=data["total_time_ms"],
+            time_complexity=data["time_complexity"],
+            path_to_graph=data["path_to_graph"]
+        )
+        
+        db.session.add(new_record)
+        db.session.commit()
+        
+        return jsonify({"message": "saved!", "id": new_record.id}), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/retrieve_analysis/<id>", methods=["GET"])
+def retrieve_analysis(id):
+    data = algorithm_info.query.filter_by(id=id).first()
+    
+    if not data:
+        return jsonify({"error": "Not found"}), 404
+    
+    return jsonify({
+        "id": data.id,
+        "algo_name": data.algo_name,
+        "items": data.items,
+        "steps": data.steps,
+        "start_time":data.start_time,
+        "end_time":data.end_time,
+        "time_complexity": data.time_complexity,
+        "path_to_graph": data.path_to_graph
+    })
 
 if __name__ == "__main__":
     app.run(debug=True, port=3000)
