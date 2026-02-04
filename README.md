@@ -60,7 +60,7 @@ complexity-analyzer/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/complexity-analyzer.git
+git clone [https://github.com/yourusername/complexity-analyzer.git](https://github.com/julesineza/home_acitivity_api_flask.git)
 cd complexity-analyzer
 ```
 
